@@ -15,10 +15,10 @@ public final class GraphBuilder {
 
     private GraphBuilder() {}
 
-    public static Graph build(ExperimentConfig cfg) {
+    public static Graph build(ExperimentConfig cfg, int attempt) {
         int n = cfg.n();
         // ~seed keeps this stream apart from the per-node streams (seed ^ id)
-        var rng = new SplittableRandom(~cfg.seed());
+        var rng = new SplittableRandom(~cfg.seed() + attempt);
         double[] x = new double[n], y = new double[n];
         for (int i = 0; i < n; i++) {
             x[i] = rng.nextDouble(cfg.L());
@@ -33,6 +33,10 @@ public final class GraphBuilder {
                     .toArray();
         }
         return new Graph(x, y, nb);
+    }
+
+    public static Graph build(ExperimentConfig cfg) {
+        return build(cfg, 0);
     }
 
     static double dist2(double[] x, double[] y, int i, int j) {

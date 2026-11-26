@@ -9,6 +9,9 @@ import java.util.Collection;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.ArrayDeque;
+import java.util.HashMap;
+import java.util.List;
 
 /**
  * Samples the whole network at a fixed interval and writes one CSV row per sample.
@@ -19,14 +22,17 @@ public final class Monitor implements AutoCloseable {
 
     /**
      * One row of the output.
+     * tSec / tUnits: elapsed wall-clock seconds, and the same in mean-tick units (Boyd's time unit).
+     * components: number of connected components among the alive nodes (more than 1 means the network is partitioned).
      * rmsError / maxError: spread of the alive nodes' estimates around the original true mean.
      * rmsErrorSurvivors: same, but around the mean of the alive nodes' initial readings.
      * bias: average alive estimate minus the original true mean (drift caused by lost mass).
+     * biasSurvivors: average alive estimate minus the mean of the alive nodes' initial readings.
      * totalS / totalW: sums of s and w over alive nodes (excludes messages still in flight).
      */
-    public record Sample(double tSec, long messages, int alive,
+    public record Sample(double tSec, double tUnits, long messages, int alive, int components,
                          double rmsError, double maxError, double rmsErrorSurvivors,
-                         double bias, double totalS, double totalW) {}
+                         double bias, double biasSurvivors, double totalS, double totalW) {}
 
     private final Collection<GossipNode> nodes;
     private final Network net;
@@ -39,11 +45,14 @@ public final class Monitor implements AutoCloseable {
     private volatile Sample last;
     private long t0;
 
+    private final double tickSec;
+
     public Monitor(Collection<GossipNode> nodes, Network net, double trueMean,
-                   Duration interval, CsvWriter<Sample> out) {
+                   Duration meanTick, Duration interval, CsvWriter<Sample> out) {
         this.nodes = nodes;
         this.net = net;
         this.trueMean = trueMean;
+        this.tickSec = meanTick.toNanos() / 1e9;
         this.interval = interval;
         this.out = out;
     }
@@ -77,11 +86,13 @@ public final class Monitor implements AutoCloseable {
 
     private Sample sample() {
         double t = (System.nanoTime() - t0) / 1e9;
+        double tUnits = t / tickSec;
         long msgs = net.stats().sent();
         var alive = nodes.stream().filter(GossipNode::isAlive).toList();
         int k = alive.size();
         if (k == 0) {
-            return new Sample(t, msgs, 0, Double.NaN, Double.NaN, Double.NaN, Double.NaN, 0, 0);
+            return new Sample(t, tUnits, msgs, 0, 0, Double.NaN, Double.NaN, Double.NaN,
+                    Double.NaN, Double.NaN, 0, 0);
         }
 
         double[] est = new double[k];
@@ -104,7 +115,29 @@ public final class Monitor implements AutoCloseable {
             sqSurv += ds * ds;
             max = Math.max(max, Math.abs(d));
         }
-        return new Sample(t, msgs, k, Math.sqrt(sq / k), max, Math.sqrt(sqSurv / k),
-                sumEst / k - trueMean, totS, totW);
+        return new Sample(t, tUnits, msgs, k, countComponents(alive),
+                Math.sqrt(sq / k), max, Math.sqrt(sqSurv / k),
+                sumEst / k - trueMean, sumEst / k - survivorsMean, totS, totW);
+    }
+
+    /** Connected components among alive nodes. Links to dead or unknown nodes are ignored. */
+    private static int countComponents(List<GossipNode> alive) {
+        var byId = new HashMap<Integer, GossipNode>();
+        for (var n : alive) byId.put(n.id, n);
+        var seen = new java.util.HashSet<Integer>();
+        var queue = new ArrayDeque<GossipNode>();
+        int comps = 0;
+        for (var start : alive) {
+            if (!seen.add(start.id)) continue;
+            comps++;
+            queue.add(start);
+            while (!queue.isEmpty()) {
+                for (int nb : queue.poll().neighbors()) {
+                    var o = byId.get(nb);
+                    if (o != null && seen.add(nb)) queue.add(o);
+                }
+            }
+        }
+        return comps;
     }
 }

@@ -15,8 +15,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Applies churn as a Poisson process with cfg.churnRate() events per second for the whole network.
- * Each event is a coin flip between two things:
+ * Applies churn as a Poisson process with cfg.churnRate() EVENTS per second for the whole network.
+ * Each event is a fair coin flip between a crash and a join, so the crash rate alone is about
+ * churnRate / 2 (and the population stays roughly constant). When only MIN_ALIVE nodes are left,
+ * every event is a join.
  *   crash: a random alive node dies silently. Its mass is lost. Its neighbors keep sending to it
  *          (and losing mass in push-sum) until they notice, DETECTION_TICKS mean ticks later.
  *   join:  a new node appears at a random position, linked to every alive node within R,
@@ -52,8 +54,15 @@ public final class ChurnController implements AutoCloseable {
     public void start() { scheduleNext(); }
 
     @Override
-    public void close() { exec.shutdownNow(); }
-
+    public void close() {
+        exec.shutdownNow();
+        try {
+            // wait for a join() that is mid-flight, so the node list is final before Experiment stops the nodes
+            exec.awaitTermination(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
     private void scheduleNext() {
         long delayNanos = (long) (-Math.log(1.0 - rng.nextDouble()) / cfg.churnRate() * 1e9);
         try {

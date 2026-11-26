@@ -13,7 +13,7 @@ import java.util.Set;
  * @param seed            master seed for positions, initial values, and per-node randomness
  * @param algorithm       which node class to run
  * @param field           shape of the initial temperature readings
- * @param churnRate       network-wide crashes per second (0 = no churn)
+ * @param churnRate       network-wide churn EVENTS per second (0 = no churn); each is a crash or a join with equal chance
  * @param lossProbability chance that any single message is dropped
  * @param meanTick        mean time between a node's clock ticks
  * @param duration        how long the run lasts
@@ -38,7 +38,8 @@ public record ExperimentConfig(
         if (churnRate < 0)                        throw new IllegalArgumentException("churn must be >= 0");
         if (lossProbability < 0 || lossProbability >= 1)
             throw new IllegalArgumentException("loss must be in [0, 1)");
-        if (meanTick.isZero() || meanTick.isNegative() || duration.isNegative() || sampleInterval.isZero())
+        if (meanTick.isZero() || meanTick.isNegative() || duration.isNegative()
+                || sampleInterval.isZero() || sampleInterval.isNegative())
             throw new IllegalArgumentException("durations must be positive");
     }
 
@@ -56,10 +57,9 @@ public record ExperimentConfig(
                 throw new IllegalArgumentException("Unknown argument '" + a + "'. Keys: " + KEYS);
             kv.put(p[0], p[1]);
         }
-        int n = Integer.parseInt(kv.getOrDefault("n", "200"));
-        double L = Double.parseDouble(kv.getOrDefault("L", "1.0"));
-        // default radius: 1.5x the connectivity threshold, so the graph is connected but still sparse
-        double R = kv.containsKey("R") ? Double.parseDouble(kv.get("R")) : 1.5 * connectivityRadius(n, L);
+        int n = Integer.parseInt(kv.getOrDefault("n", "1000"));
+        double L = Double.parseDouble(kv.getOrDefault("L", "500"));
+        double R = Double.parseDouble(kv.getOrDefault("R", "50"));
         return new ExperimentConfig(
                 n, L, R,
                 Long.parseLong(kv.getOrDefault("seed", "42")),
@@ -67,8 +67,8 @@ public record ExperimentConfig(
                 Field.valueOf(kv.getOrDefault("field", "IID").toUpperCase()),
                 Double.parseDouble(kv.getOrDefault("churn", "0")),
                 Double.parseDouble(kv.getOrDefault("loss", "0")),
-                Duration.ofMillis(Long.parseLong(kv.getOrDefault("tickMs", "10"))),
-                Duration.ofSeconds(Long.parseLong(kv.getOrDefault("durationSec", "30"))),
+                Duration.ofMillis(Long.parseLong(kv.getOrDefault("tickMs", "50"))),
+                Duration.ofSeconds(Long.parseLong(kv.getOrDefault("durationSec", "60"))),
                 Duration.ofMillis(Long.parseLong(kv.getOrDefault("sampleMs", "100"))));
     }
 }

@@ -4,7 +4,8 @@ import edu.sjsu.cs262.gossip.net.Network;
 import edu.sjsu.cs262.gossip.sim.SimClock;
 
 /**
- * Pairwise gossip with a heavy-ball-style momentum term, adapted for asynchronous nodes.
+ * Momentum-inspired pairwise gossip, adapted for asynchronous nodes. In the paper, call it that,
+ * not "heavy-ball gossip" or "Loizou and Richtarik".
  *
  * This is NOT the update from Loizou and Richtarik. In their protocols every node updates its value
  * at every step and only a subset exchange messages, which needs a shared global step. Here nodes
@@ -23,6 +24,10 @@ import edu.sjsu.cs262.gossip.sim.SimClock;
  * Whether this accelerates anything is an empirical question for the experiments. As a rough
  * heuristic, keep BETA below 0.5 or the residual momentum can fail to die out; that bound is
  * untested here.
+ *
+ * Caution: the overshoot term can raise the pair's difference whenever BETA * |lastChange_a - lastChange_b|
+ * exceeds |a - b|, so unlike plain averaging an exchange can increase variance. Compare against
+ * PAIRWISE and report it as a result if this turns out slower or unstable.
  */
 public class MomentumNode extends PairwiseNode {
 

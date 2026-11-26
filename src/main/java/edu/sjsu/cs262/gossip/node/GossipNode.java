@@ -30,7 +30,8 @@ public abstract class GossipNode implements Runnable {
     private volatile boolean alive = true;
     private volatile int[] neighbors = new int[0];   // immutable snapshot, replaced wholesale
     private volatile Mass mass;
-    private Thread thread;
+    private volatile Thread thread;
+    private volatile boolean stopped;
 
     protected GossipNode(int id, double x, double y, double initialValue,
                          Network net, SimClock clock, long seed) {
@@ -39,7 +40,7 @@ public abstract class GossipNode implements Runnable {
         this.y = y;
         this.net = net;
         this.clock = clock;
-        this.rng = new SplittableRandom(seed ^ id);
+        this.rng = new SplittableRandom(seed * 1_000_003L + id);
         this.initial = initialValue;
         this.mass = new Mass(initialValue, 1.0);     // pairwise just keeps w = 1
     }
@@ -77,7 +78,7 @@ public abstract class GossipNode implements Runnable {
     public final void run() {
         try {
             long next = System.nanoTime() + clock.nextDelayNanos(rng);
-            while (alive) {
+            while (alive && !stopped) {
                 long wait = next - System.nanoTime();
                 Message m = wait > 0 ? inbox.poll(wait, TimeUnit.NANOSECONDS) : null;
                 if (m != null) {
@@ -90,5 +91,32 @@ public abstract class GossipNode implements Runnable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();     // crash() or shutdown
         }
+    }
+
+    public final void stop() {
+        stopped = true;
+        var t = thread;
+        if (t != null) t.interrupt();
+    }
+
+    public void awaitStopped() throws InterruptedException {
+        var t = thread;
+        if (t != null) t.join(2000);
+    }
+
+    /**
+     * Mass sitting in this node's inbox, not yet processed. Only call after the node's thread has stopped,
+     * for the end-of-run conservation check.
+     */
+    public Mass pendingMass() {
+        double s = 0, w = 0;
+        for (Message m : inbox) {
+            switch (m) {
+                case Message.Share(var from, var ms, var mw) -> { s += ms; w += mw; }
+                case Message.Reply(var from, var seq, var delta) -> s += delta;   // only valid after the Reply change (see below)
+                default -> { }
+            }
+        }
+        return new Mass(s, w);
     }
 }
