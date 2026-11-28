@@ -24,18 +24,20 @@ public record ExperimentConfig(
         double churnRate, double lossProbability,
         Duration meanTick, Duration duration, Duration sampleInterval) {
 
-    public enum Algorithm { PAIRWISE, PUSH_SUM, MOMENTUM }
+    public enum Algorithm {PAIRWISE, PUSH_SUM, MOMENTUM}
 
-    /** Shape of the initial readings: independent noise, a smooth left-to-right gradient, or a hot half and a cold half. */
-    public enum Field { IID, SMOOTH, HALF }
+    /**
+     * Shape of the initial readings: independent noise, a smooth left-to-right gradient, or a hot half and a cold half.
+     */
+    public enum Field {IID, SMOOTH, HALF}
 
     private static final Set<String> KEYS = Set.of(
             "n", "L", "R", "seed", "algorithm", "field", "churn", "loss", "tickMs", "durationSec", "sampleMs");
 
     public ExperimentConfig {
-        if (n < 2)                                throw new IllegalArgumentException("n must be >= 2");
-        if (L <= 0 || R <= 0)                     throw new IllegalArgumentException("L and R must be > 0");
-        if (churnRate < 0)                        throw new IllegalArgumentException("churn must be >= 0");
+        if (n < 2) throw new IllegalArgumentException("n must be >= 2");
+        if (L <= 0 || R <= 0) throw new IllegalArgumentException("L and R must be > 0");
+        if (churnRate < 0) throw new IllegalArgumentException("churn must be >= 0");
         if (lossProbability < 0 || lossProbability >= 1)
             throw new IllegalArgumentException("loss must be in [0, 1)");
         if (meanTick.isZero() || meanTick.isNegative() || duration.isNegative()
@@ -43,12 +45,16 @@ public record ExperimentConfig(
             throw new IllegalArgumentException("durations must be positive");
     }
 
-    /** Radius at which a random geometric graph becomes connected with high probability (asymptotically). */
+    /**
+     * Radius at which a random geometric graph becomes connected with high probability (asymptotically).
+     */
     public static double connectivityRadius(int n, double L) {
         return L * Math.sqrt(Math.log(n) / (Math.PI * n));
     }
 
-    /** Parses key=value arguments, e.g. {@code n=200 algorithm=PUSH_SUM churn=0.5 durationSec=30}. */
+    /**
+     * Parses key=value arguments, e.g. {@code n=200 algorithm=PUSH_SUM churn=0.5 durationSec=30}.
+     */
     public static ExperimentConfig fromArgs(String... args) {
         var kv = new HashMap<String, String>();
         for (var a : args) {
@@ -69,6 +75,7 @@ public record ExperimentConfig(
                 Double.parseDouble(kv.getOrDefault("loss", "0")),
                 Duration.ofMillis(Long.parseLong(kv.getOrDefault("tickMs", "50"))),
                 Duration.ofSeconds(Long.parseLong(kv.getOrDefault("durationSec", "60"))),
-                Duration.ofMillis(Long.parseLong(kv.getOrDefault("sampleMs", "100"))));
+                Duration.ofMillis(Long.parseLong(kv.getOrDefault("sampleMs", "100")))
+        );
     }
 }

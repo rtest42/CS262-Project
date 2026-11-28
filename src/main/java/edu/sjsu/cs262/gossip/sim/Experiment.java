@@ -19,7 +19,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/** One run: build the network, start everything, wait, stop, check conservation, and report. */
+/**
+ * One run: build the network, start everything, wait, stop, check conservation, and report.
+ */
 public final class Experiment {
 
     private static final int MAX_GRAPH_ATTEMPTS = 50;
@@ -32,22 +34,23 @@ public final class Experiment {
      * dropped   = mass carried by messages the network discarded (random loss or dead target).
      * ok = accounted equals expected, within floating-point tolerance. If false, there is a bug.
      */
-    public record Conservation(double expectedS, double expectedW,
-                               double accountedS, double accountedW,
-                               double strandedS, double strandedW,
-                               double droppedS, double droppedW,
-                               boolean ok) {}
+    public record Conservation(double expectedS, double expectedW, double accountedS, double accountedW,
+                               double strandedS, double strandedW, double droppedS, double droppedW, boolean ok) {
+    }
 
-    /** What a finished run reports: the final sample, the total traffic, and the mass accounting. */
-    public record Result(Monitor.Sample last, Network.Stats traffic, Conservation conservation) {}
+    /**
+     * What a finished run reports: the final sample, the total traffic, and the mass accounting.
+     */
+    public record Result(Monitor.Sample last, Network.Stats traffic, Conservation conservation) {
+    }
 
-    private Experiment() {}
+    private Experiment() {
+    }
 
     public static Result run(ExperimentConfig cfg, Path csv) throws Exception {
         var graph = connectedGraph(cfg);
         var deg = GraphChecks.degreeStats(graph);
-        System.out.printf(Locale.ROOT, "graph: n=%d R=%.4f degree min/mean/max = %d/%.1f/%d%n",
-                cfg.n(), cfg.R(), deg.min(), deg.mean(), deg.max());
+        System.out.printf(Locale.ROOT, "graph: n=%d R=%.4f degree min/mean/max = %d/%.1f/%d%n", cfg.n(), cfg.R(), deg.min(), deg.mean(), deg.max());
 
         var readings = TemperatureField.generate(graph, cfg);
         var net = new Network(cfg.lossProbability());
@@ -69,16 +72,15 @@ public final class Experiment {
 
         var out = new CsvWriter<>(csv, Monitor.Sample.class);
         var monitor = new Monitor(nodes, net, readings.mean(), cfg.meanTick(), cfg.sampleInterval(), out);
-        var churn = cfg.churnRate() > 0 ? new ChurnController(cfg, nodes, net, factory) : null;
 
-        try (out; monitor) {                    // monitor closes first, taking a final sample while nodes are running
+        try (var churn = cfg.churnRate() > 0 ? new ChurnController(cfg, nodes, net, factory) : null; out; monitor) {                    // monitor closes first, taking a final sample while nodes are running
             nodes.forEach(GossipNode::start);
             monitor.start();
             if (churn != null) churn.start();
             Thread.sleep(cfg.duration());
-            if (churn != null) churn.close();   // waits for any in-progress join, so the node list is final
+            // if (churn != null) churn.close();   // waits for any in-progress join, so the node list is final
         } finally {
-            if (churn != null) churn.close();   // safe to call twice; covers the exception path
+            // safe to call twice; covers the exception path
             nodes.forEach(GossipNode::stop);    // stop, not crash: stopped nodes still count as alive
             for (var node : nodes) node.awaitStopped();   // all threads done, so the reads below are safe
         }
@@ -87,20 +89,24 @@ public final class Experiment {
         return new Result(monitor.last(), traffic, checkConservation(nodes, traffic));
     }
 
-    /** Builds a graph, trying new positions (up to MAX_GRAPH_ATTEMPTS) until one is connected. */
+    /**
+     * Builds a graph, trying new positions (up to MAX_GRAPH_ATTEMPTS) until one is connected.
+     */
     private static GraphBuilder.Graph connectedGraph(ExperimentConfig cfg) {
         for (int attempt = 0; attempt < MAX_GRAPH_ATTEMPTS; attempt++) {
             var g = GraphBuilder.build(cfg, attempt);
             if (GraphChecks.isConnected(g)) {
-                if (attempt > 0) System.out.println("graph: resampled " + attempt + " time(s) to get a connected graph");
+                if (attempt > 0)
+                    System.out.println("graph: resampled " + attempt + " time(s) to get a connected graph");
                 return g;
             }
         }
-        throw new IllegalStateException("No connected graph in " + MAX_GRAPH_ATTEMPTS
-                + " attempts. Increase R or n.");
+        throw new IllegalStateException("No connected graph in " + MAX_GRAPH_ATTEMPTS + " attempts. Increase R or n.");
     }
 
-    /** Call only after every node thread has stopped. */
+    /**
+     * Call only after every node thread has stopped.
+     */
     private static Conservation checkConservation(List<GossipNode> nodes, Network.Stats t) {
         double expS = 0, heldS = 0, heldW = 0, strS = 0, strW = 0, scale = nodes.size();
         for (var node : nodes) {
@@ -111,7 +117,10 @@ public final class Experiment {
             double s = m.s() + p.s(), w = m.w() + p.w();
             heldS += s;
             heldW += w;
-            if (!node.isAlive()) { strS += s; strW += w; }
+            if (!node.isAlive()) {
+                strS += s;
+                strW += w;
+            }
         }
         double expW = nodes.size();
         double accS = heldS + t.lostS(), accW = heldW + t.lostW();

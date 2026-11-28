@@ -17,11 +17,13 @@ import java.util.concurrent.atomic.LongAdder;
 public final class Network {
 
     /**
-     * Snapshot of the counters. sent = every transmission attempt, whether or not it arrived.
+     * Snapshot of the counters. sent = every transmission attempt, whether it arrived.
      * lostS / lostW = total (s, w) mass carried by messages that were dropped (random loss or dead target).
      */
     public record Stats(long sent, long lost, long toDead, double lostS, double lostW) {
-        public long delivered() { return sent - lost - toDead; }
+        public long delivered() {
+            return sent - lost - toDead;
+        }
     }
 
     private final Map<Integer, GossipNode> nodes = new ConcurrentHashMap<>();
@@ -33,12 +35,20 @@ public final class Network {
         this.lossProbability = lossProbability;
     }
 
-    public void register(GossipNode node) { nodes.put(node.id, node); }
+    public void register(GossipNode node) {
+        nodes.put(node.id, node);
+    }
 
-    /** Removes a node entirely, as when it leaves the network instead of crashing. */
-    public void unregister(int id)        { nodes.remove(id); }
+    /**
+     * Removes a node entirely, as when it leaves the network instead of crashing.
+     */
+    public void unregister(int id) {
+        nodes.remove(id);
+    }
 
-    public GossipNode node(int id)        { return nodes.get(id); }
+    public GossipNode node(int id) {
+        return nodes.get(id);
+    }
 
     public void send(int to, Message m) {
         sent.increment();
@@ -56,12 +66,18 @@ public final class Network {
         target.deliver(m);
     }
 
-    /** Adds the mass a dropped message was carrying to the lost-mass totals. Messages with no mass add nothing. */
+    /**
+     * Adds the mass a dropped message was carrying to the lost-mass totals. Messages with no mass add nothing.
+     */
     private void recordLostMass(Message m) {
         switch (m) {
-            case Message.Share(var from, var s, var w) -> { lostS.add(s); lostW.add(w); }
+            case Message.Share(var from, var s, var w) -> {
+                lostS.add(s);
+                lostW.add(w);
+            }
             case Message.Reply(var from, var seq, var delta) -> lostS.add(delta);   // only valid after the Reply change
-            default -> { }                                                           // Request and Busy carry no mass
+            default -> {
+            }                                                           // Request and Busy carry no mass
         }
     }
 

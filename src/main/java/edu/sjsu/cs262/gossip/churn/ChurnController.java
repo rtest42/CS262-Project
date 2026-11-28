@@ -19,10 +19,10 @@ import java.util.concurrent.TimeUnit;
  * Each event is a fair coin flip between a crash and a join, so the crash rate alone is about
  * churnRate / 2 (and the population stays roughly constant). When only MIN_ALIVE nodes are left,
  * every event is a join.
- *   crash: a random alive node dies silently. Its mass is lost. Its neighbors keep sending to it
- *          (and losing mass in push-sum) until they notice, DETECTION_TICKS mean ticks later.
- *   join:  a new node appears at a random position, linked to every alive node within R,
- *          with a fresh reading from the temperature field.
+ * crash: a random alive node dies silently. Its mass is lost. Its neighbors keep sending to it
+ * (and losing mass in push-sum) until they notice, DETECTION_TICKS mean ticks later.
+ * join:  a new node appears at a random position, linked to every alive node within R,
+ * with a fresh reading from the temperature field.
  * Everything runs on one scheduler thread, so neighbor lists have a single writer.
  */
 public final class ChurnController implements AutoCloseable {
@@ -51,18 +51,24 @@ public final class ChurnController implements AutoCloseable {
         this.nextId = nodes.size();                                        // initial ids are 0..n-1
     }
 
-    public void start() { scheduleNext(); }
+    public void start() {
+        scheduleNext();
+    }
 
     @Override
     public void close() {
         exec.shutdownNow();
         try {
             // wait for a join() that is mid-flight, so the node list is final before Experiment stops the nodes
-            exec.awaitTermination(1, TimeUnit.SECONDS);
+            boolean terminated = exec.awaitTermination(1, TimeUnit.SECONDS);
+            if (!terminated) {
+                System.err.println("Executor did not terminate within 1 second");
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     }
+
     private void scheduleNext() {
         long delayNanos = (long) (-Math.log(1.0 - rng.nextDouble()) / cfg.churnRate() * 1e9);
         try {
@@ -92,7 +98,9 @@ public final class ChurnController implements AutoCloseable {
         exec.schedule(() -> prune(victim), detectionNanos, TimeUnit.NANOSECONDS);
     }
 
-    /** Neighbors finally notice the crash and drop the dead node from their lists. */
+    /**
+     * Neighbors finally notice the crash and drop the dead node from their lists.
+     */
     private void prune(GossipNode victim) {
         for (int id : victim.neighbors()) {
             var nb = net.node(id);

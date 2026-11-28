@@ -4,14 +4,20 @@ import edu.sjsu.cs262.gossip.topology.GraphBuilder.Graph;
 
 import java.util.Arrays;
 
-/** Sanity checks to run on a graph before any experiment. */
+/**
+ * Sanity checks to run on a graph before any experiment.
+ */
 public final class GraphChecks {
 
-    public record DegreeStats(int min, double mean, int max) {}
+    public record DegreeStats(int min, double mean, int max) {
+    }
 
-    private GraphChecks() {}
+    private GraphChecks() {
+    }
 
-    /** Sizes of the connected components, found with BFS. A connected graph gives exactly one entry. */
+    /**
+     * Sizes of the connected components, found with BFS. A connected graph gives exactly one entry.
+     */
     public static int[] componentSizes(Graph g) {
         int n = g.size();
         boolean[] seen = new boolean[n];
@@ -45,13 +51,14 @@ public final class GraphChecks {
         return new DegreeStats(s.getMin(), s.getAverage(), s.getMax());
     }
 
-    /** Throws with a readable message if the graph is disconnected, so a bad R fails fast. */
+    /**
+     * Throws with a readable message if the graph is disconnected, so a bad R fails fast.
+     */
     public static void requireConnected(Graph g) {
         int[] sizes = componentSizes(g);
         if (sizes.length > 1) {
-            throw new IllegalStateException("Graph is disconnected: " + sizes.length
-                    + " components, largest has " + Arrays.stream(sizes).max().getAsInt()
-                    + " of " + g.size() + " nodes. Increase R or change the seed.");
+            throw new IllegalStateException("Graph is disconnected: " + sizes.length + " components, largest has " +
+                    Arrays.stream(sizes).max().getAsInt() + " of " + g.size() + " nodes. Increase R or change the seed.");
         }
     }
 }

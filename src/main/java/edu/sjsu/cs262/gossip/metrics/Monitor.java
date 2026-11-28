@@ -32,7 +32,8 @@ public final class Monitor implements AutoCloseable {
      */
     public record Sample(double tSec, double tUnits, long messages, int alive, int components,
                          double rmsError, double maxError, double rmsErrorSurvivors,
-                         double bias, double biasSurvivors, double totalS, double totalW) {}
+                         double bias, double biasSurvivors, double totalS, double totalW) {
+    }
 
     private final Collection<GossipNode> nodes;
     private final Network net;
@@ -57,20 +58,31 @@ public final class Monitor implements AutoCloseable {
         this.out = out;
     }
 
-    /** Starts sampling; the first sample is taken immediately, so the curve begins at t = 0. */
+    /**
+     * Starts sampling; the first sample is taken immediately, so the curve begins at t = 0.
+     */
     public void start() {
         t0 = System.nanoTime();
         exec.scheduleAtFixedRate(this::record, 0, interval.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    /** The most recent sample, or null before the first one. */
-    public Sample last() { return last; }
+    /**
+     * The most recent sample, or null before the first one.
+     */
+    public Sample last() {
+        return last;
+    }
 
-    /** Stops the sampler and takes one final sample, so the run's end state is always recorded. */
+    /**
+     * Stops the sampler and takes one final sample, so the run's end state is always recorded.
+     */
     @Override
     public void close() throws InterruptedException {
         exec.shutdown();
-        exec.awaitTermination(5, TimeUnit.SECONDS);
+        boolean terminated = exec.awaitTermination(5, TimeUnit.SECONDS);
+        if (!terminated) {
+            System.err.println("Executor did not terminate within 5 seconds");
+        }
         record();
     }
 
@@ -120,7 +132,9 @@ public final class Monitor implements AutoCloseable {
                 sumEst / k - trueMean, sumEst / k - survivorsMean, totS, totW);
     }
 
-    /** Connected components among alive nodes. Links to dead or unknown nodes are ignored. */
+    /**
+     * Connected components among alive nodes. Links to dead or unknown nodes are ignored.
+     */
     private static int countComponents(List<GossipNode> alive) {
         var byId = new HashMap<Integer, GossipNode>();
         for (var n : alive) byId.put(n.id, n);

@@ -5,15 +5,22 @@ import edu.sjsu.cs262.gossip.config.ExperimentConfig;
 import java.util.SplittableRandom;
 import java.util.stream.IntStream;
 
-/** Builds a random geometric graph: n points uniform in an L x L square, linked if within distance R. */
+/**
+ * Builds a random geometric graph: n points uniform in an L x L square, linked if within distance R.
+ */
 public final class GraphBuilder {
 
-    /** Node i sits at (x[i], y[i]) and its neighbors are neighbors[i]. Links are symmetric. */
+    /**
+     * Node i sits at (x[i], y[i]) and its neighbors are neighbors[i]. Links are symmetric.
+     */
     public record Graph(double[] x, double[] y, int[][] neighbors) {
-        public int size() { return x.length; }
+        public int size() {
+            return x.length;
+        }
     }
 
-    private GraphBuilder() {}
+    private GraphBuilder() {
+    }
 
     public static Graph build(ExperimentConfig cfg, int attempt) {
         int n = cfg.n();
@@ -28,9 +35,7 @@ public final class GraphBuilder {
         int[][] nb = new int[n][];
         for (int i = 0; i < n; i++) {          // O(n^2), fine at the sizes this project uses
             int self = i;
-            nb[i] = IntStream.range(0, n)
-                    .filter(j -> j != self && dist2(x, y, self, j) <= r2)
-                    .toArray();
+            nb[i] = IntStream.range(0, n).filter(j -> j != self && dist2(x, y, self, j) <= r2).toArray();
         }
         return new Graph(x, y, nb);
     }

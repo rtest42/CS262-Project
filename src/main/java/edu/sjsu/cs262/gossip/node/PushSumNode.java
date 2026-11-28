@@ -11,8 +11,7 @@ import edu.sjsu.cs262.gossip.sim.SimClock;
  */
 public class PushSumNode extends GossipNode {
 
-    public PushSumNode(int id, double x, double y, double initialValue,
-                       Network net, SimClock clock, long seed) {
+    public PushSumNode(int id, double x, double y, double initialValue, Network net, SimClock clock, long seed) {
         super(id, x, y, initialValue, net, clock, seed);
     }
 

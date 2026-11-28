@@ -15,8 +15,11 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class GossipNode implements Runnable {
 
-    /** Immutable (sum, weight) pair. Swapped atomically so the Monitor never sees a torn read. */
-    public record Mass(double s, double w) {}
+    /**
+     * Immutable (sum, weight) pair. Swapped atomically so the Monitor never sees a torn read.
+     */
+    public record Mass(double s, double w) {
+    }
 
     public final int id;
     public final double x, y;
@@ -47,28 +50,58 @@ public abstract class GossipNode implements Runnable {
 
     // ---- what subclasses implement ----
     protected abstract void onTick();
+
     protected abstract void onMessage(Message m);
 
     // ---- state, readable from any thread (Monitor) ----
-    public Mass mass()        { return mass; }
-    public double estimate()  { var m = mass; return m.s() / m.w(); }
-    protected void setMass(double s, double w) { mass = new Mass(s, w); }
+    public Mass mass() {
+        return mass;
+    }
+
+    public double estimate() {
+        var m = mass;
+        return m.s() / m.w();
+    }
+
+    protected void setMass(double s, double w) {
+        mass = new Mass(s, w);
+    }
 
     // ---- lifecycle and wiring (called by Experiment / ChurnController / Network) ----
-    public void setNeighbors(int[] ids) { neighbors = ids.clone(); }
-    public int[] neighbors()            { return neighbors; }   // shared snapshot: callers must not modify it
-    public boolean isAlive()            { return alive; }
-    public void deliver(Message m)      { inbox.offer(m); }
+    public void setNeighbors(int[] ids) {
+        neighbors = ids.clone();
+    }
 
-    public void start() { thread = Thread.ofVirtual().name("node-" + id).start(this); }
+    public int[] neighbors() {
+        return neighbors;
+    }   // shared snapshot: callers must not modify it
 
-    /** Crash: stops the loop. The node's mass is lost, which is exactly what the bias metric measures. */
+    public boolean isAlive() {
+        return alive;
+    }
+
+    public void deliver(Message m) {
+        boolean delivered = inbox.offer(m);
+        if (!delivered) {
+            System.err.println("Message could not be delivered: inbox is full.");
+        }
+    }
+
+    public void start() {
+        thread = Thread.ofVirtual().name("node-" + id).start(this);
+    }
+
+    /**
+     * Crash: stops the loop. The node's mass is lost, which is exactly what the bias metric measures.
+     */
     public void crash() {
         alive = false;
         if (thread != null) thread.interrupt();
     }
 
-    /** Uniform random neighbor, or -1 if none. Override for smarter selection in a variation. */
+    /**
+     * Uniform random neighbor, or -1 if none. Override for smarter selection in a variation.
+     */
     protected int pickNeighbor() {
         var n = neighbors;
         return n.length == 0 ? -1 : n[rng.nextInt(n.length)];
@@ -112,9 +145,14 @@ public abstract class GossipNode implements Runnable {
         double s = 0, w = 0;
         for (Message m : inbox) {
             switch (m) {
-                case Message.Share(var from, var ms, var mw) -> { s += ms; w += mw; }
-                case Message.Reply(var from, var seq, var delta) -> s += delta;   // only valid after the Reply change (see below)
-                default -> { }
+                case Message.Share(var from, var ms, var mw) -> {
+                    s += ms;
+                    w += mw;
+                }
+                case Message.Reply(var from, var seq, var delta) ->
+                        s += delta;   // only valid after the Reply change (see below)
+                default -> {
+                }
             }
         }
         return new Mass(s, w);
